@@ -2,8 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import CardapioPublic from './components/CardapioPublic';
 import AdminSupabase from './components/AdminSupabase';
 import Auth from './components/Auth';
+import Cadastro from './components/Cadastro';
 import useCartStore from './store/cartStore';
-import { supabase } from './supabaseClient'; // ajuste o caminho se necessário
+import { supabase } from './supabaseClient';
 import { useState, useEffect } from 'react';
 
 function App() {
@@ -16,23 +17,23 @@ function App() {
   const totalPrice = getTotalPrice();
 
   const formatarPreco = (valor) => {
-    return 'R$ ' + valor.toFixed(2).replace('.', ',');
+    const num = parseFloat(valor);
+    if (isNaN(num) || num < 0) return 'R$ 0,00';
+    return 'R$ ' + num.toFixed(2).replace('.', ',');
   };
 
   useEffect(() => {
-    // Verifica sessão atual
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Escuta mudanças de auth
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => listener?.subscription?.unsubscribe();
   }, []);
 
   const handleLogout = async () => {
@@ -40,18 +41,22 @@ function App() {
     setUser(null);
   };
 
-  const ProtectedRoute = ({ children }) => {
+  // ← PROTEÇÃO DO ADMIN: só permite acesso se o email for o seu
+  const AdminRoute = ({ children }) => {
     const navigate = useNavigate();
-    const location = useLocation();
 
     useEffect(() => {
-      if (!loading && !user) {
-        navigate('/login', { state: { from: location } });
+      if (!loading) {
+        if (!user) {
+          navigate('/login');
+        } else if (user.email !== 'pedroenriquesilva1997@gmail.com') {
+          navigate('/'); // Redireciona pro cardápio se não for admin
+        }
       }
-    }, [loading, user, navigate, location]);
+    }, [loading, user, navigate]);
 
     if (loading) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
-    if (!user) return null;
+    if (!user || user.email !== 'pedroenriquesilva1997@gmail.com') return null;
 
     return children;
   };
@@ -76,15 +81,22 @@ function App() {
 
         <div className="d-flex align-items-center gap-3">
           <Link to="/"><button className="btn btn-light fw-bold px-4 py-2">Cardápio</button></Link>
+          
           {user ? (
             <>
-              <Link to="/admin"><button className="btn btn-light fw-bold px-4 py-2">Admin</button></Link>
+              {user.email === 'pedroenriquesilva1997@gmail.com' && (
+                <Link to="/admin"><button className="btn btn-light fw-bold px-4 py-2">Admin</button></Link>
+              )}
               <span className="text-white fw-bold">Olá, {user.email.split('@')[0]}</span>
               <button onClick={handleLogout} className="btn btn-outline-light fw-bold px-4 py-2">Sair</button>
             </>
           ) : (
-            <Link to="/login"><button className="btn btn-light fw-bold px-4 py-2">Entrar</button></Link>
+            <>
+              <Link to="/login"><button className="btn btn-light fw-bold px-4 py-2 me-2">Entrar</button></Link>
+              <Link to="/cadastro"><button className="btn btn-success fw-bold px-4 py-2">Cadastrar</button></Link>
+            </>
           )}
+          
           <Link to="/carrinho">
             <button className="btn btn-warning text-dark fw-bold px-4 py-2 position-relative">
               🛒 Carrinho
@@ -109,6 +121,15 @@ function App() {
         </div>
       );
     }
+
+    const numeroWhatsApp = '559999999999'; // ← TROQUE PELO NÚMERO REAL DA DISTRIBUIDORA
+
+    const mensagemPedido = items
+      .map(item => `${item.quantidade}x ${item.nome} - ${formatarPreco(item.preco * item.quantidade)}`)
+      .join('\n') +
+      `\n\n*Total: ${formatarPreco(totalPrice)}*\n\nObrigado pelo pedido! 🍻\nDistribuidora SACI`;
+
+    const whatsappLink = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagemPedido)}`;
 
     return (
       <div className="container py-5 mt-5">
@@ -162,8 +183,11 @@ function App() {
             </div>
 
             <div className="text-center">
-              <button className="btn btn-success btn-lg px-5 py-4 fs-3 shadow-lg rounded-pill me-4">
-                Finalizar Pedido no WhatsApp
+              <button
+                onClick={() => window.open(whatsappLink, '_blank')}
+                className="btn btn-success btn-lg px-5 py-4 fs-3 shadow-lg rounded-pill me-4 fw-bold"
+              >
+                📲 Finalizar Pedido no WhatsApp
               </button>
               <button onClick={clearCart} className="btn btn-outline-danger btn-lg px-5 py-4 fs-4 rounded-pill">
                 Limpar Carrinho
@@ -188,8 +212,9 @@ function App() {
           <Routes>
             <Route path="/" element={<CardapioPublic />} />
             <Route path="/login" element={user ? <CardapioPublic /> : <Auth />} />
+            <Route path="/cadastro" element={user ? <CardapioPublic /> : <Cadastro />} />
             <Route path="/carrinho" element={<CarrinhoPage />} />
-            <Route path="/admin" element={<ProtectedRoute><AdminSupabase /></ProtectedRoute>} />
+            <Route path="/admin" element={<AdminRoute><AdminSupabase /></AdminRoute>} />
           </Routes>
         </div>
       </div>
