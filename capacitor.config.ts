@@ -1,9 +1,10 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.saci.cardapio',
-  appName: 'distribuidora castro',
-  webDir: 'build'
+  appName: 'Distribuidora SACI',
+  webDir: 'build',
+  bundledWebRuntime: false
 };
 
 export default config;
