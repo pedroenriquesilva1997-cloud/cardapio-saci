@@ -1,0 +1,1 @@
+      setProdutos(produtos.filter(p = !== id));
